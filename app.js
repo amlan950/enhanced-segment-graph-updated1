@@ -508,7 +508,7 @@ class Graph {
 
         // Only allow segments between consecutive vertices (no wrap-around from last to first)
         if ((startIdx === this.periphery.length - 1 && endIdx === 0) || (startIdx === 0 && endIdx === this.periphery.length - 1)) {
-            return { success: false, message: "Only consecutive periphery vertices allowed (no wrap-around)" };
+            return { success: false, message: "periphery vertices Not allowed (no wrap-around)" };
         }
 
         // Get segment between startIdx and endIdx (inclusive, clockwise)
