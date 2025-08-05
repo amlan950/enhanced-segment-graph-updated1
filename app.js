@@ -502,35 +502,41 @@ class Graph {
             return { success: false, message: "Need at least 2 periphery vertices" };
         }
 
-        // Select random segment size (2-6 vertices, but not more than periphery)
-        const maxSegmentSize = Math.min(6, this.periphery.length);
-        const segmentSize = Math.max(2, Math.floor(Math.random() * (maxSegmentSize - 1)) + 2);
-
-        // Select random starting position
+        // Pick a random consecutive pair of periphery indices
         const startIdx = Math.floor(Math.random() * this.periphery.length);
-        const endIdx = (startIdx + segmentSize - 1) % this.periphery.length;
+        const endIdx = (startIdx + 1) % this.periphery.length;
 
-        // Use all vertices in the segment for connection
+        // Get segment between startIdx and endIdx (inclusive, clockwise)
         const segmentIndices = this.getPeripherySegment(startIdx, endIdx);
+
+        // Select endpoints for the segment
         this.selectedVertices = [this.periphery[startIdx], this.periphery[endIdx]];
-
-        // Save original getPeripherySegment
-        const originalGetPeripherySegment = this.getPeripherySegment;
-
-        // Temporarily override getPeripherySegment to return the full segment
-        this.getPeripherySegment = (a, b) => segmentIndices;
+        // Ensure all segment vertices (including in-between ones) are included
+        this.segmentVertices = segmentIndices;
 
         // Process the segment selection
         const result = this.processSegmentSelection();
-
-        // Restore original getPeripherySegment
-        this.getPeripherySegment = originalGetPeripherySegment;
 
         // Clear the temporary selection regardless of result
         this.selectedVertices = [];
         this.segmentVertices = [];
 
         return result;
+    }
+    
+    toggleManualMode() {
+        this.graph.manualMode = !this.graph.manualMode;
+        this.graph.selectedVertices = [];
+        this.updateManualModeUI();
+        this.updateUI();
+        
+        if (this.graph.manualMode) {
+            this.showMessage('Manual mode: Click two periphery vertices', 'info');
+        } else {
+            this.showMessage('Manual mode disabled', 'info');
+        }
+        
+        this.renderer.render();
     }
 }
 
