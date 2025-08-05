@@ -501,25 +501,35 @@ class Graph {
         if (this.periphery.length < 2) {
             return { success: false, message: "Need at least 2 periphery vertices" };
         }
-        
+
         // Select random segment size (2-6 vertices, but not more than periphery)
         const maxSegmentSize = Math.min(6, this.periphery.length);
         const segmentSize = Math.max(2, Math.floor(Math.random() * (maxSegmentSize - 1)) + 2);
-        
+
         // Select random starting position
         const startIdx = Math.floor(Math.random() * this.periphery.length);
         const endIdx = (startIdx + segmentSize - 1) % this.periphery.length;
-        
-        // Set up the segment
-        this.selectedVertices = [this.periphery[startIdx], this.periphery[endIdx]];
-        
+
+        // Only use endpoints for connection, not intermediate vertices
+        const endpointIndices = [this.periphery[startIdx], this.periphery[endIdx]];
+        this.selectedVertices = endpointIndices;
+
+        // Save original getPeripherySegment
+        const originalGetPeripherySegment = this.getPeripherySegment;
+
+        // Temporarily override getPeripherySegment to only return endpoints
+        this.getPeripherySegment = (a, b) => endpointIndices;
+
         // Process the segment selection
         const result = this.processSegmentSelection();
-        
+
+        // Restore original getPeripherySegment
+        this.getPeripherySegment = originalGetPeripherySegment;
+
         // Clear the temporary selection regardless of result
         this.selectedVertices = [];
         this.segmentVertices = [];
-        
+
         return result;
     }
 }
