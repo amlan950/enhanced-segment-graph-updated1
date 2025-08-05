@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Triangulated Graph Drawing App - No Edge Crossings Guaranteed</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Command Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Graph Commands</h2>
+                <!-- <div class="crossing-guarantee">
+                    <span class="status status--success">🚫 No Edge Crossings</span>
+                </div> -->
+            </div>
+            
+            <div class="command-section">
+                <h3>Graph Operations</h3>
+                <button class="btn btn--primary btn--full-width" id="startTriangle" title="Reset to basic V1-V2-V3 triangle">
+                    <span class="key">S</span> Start Triangle
+                </button>
+                <button class="btn btn--secondary btn--full-width" id="addRandom" title="Automatically select random periphery segment (2-6 vertices)">
+                    <span class="key">R</span> Add Random Segment
+                </button>
+                <button class="btn btn--outline btn--full-width" id="manualMode" title="User clicks two periphery vertices to define segment">
+                    <span class="key">A</span> Manual Segment Mode
+                </button>
+            </div>
+
+            <div class="command-section">
+                <h3>Navigation</h3>
+                <div class="form-group">
+                    <label class="form-label" for="goToVertex">Go to Vertex:</label>
+                    <div class="input-group">
+                        <input type="number" id="goToVertex" class="form-control" min="1" placeholder="Vertex #">
+                        <button class="btn btn--secondary" id="goToBtn" title="Show vertices 1 to m">Gm</button>
+                    </div>
+                </div>
+                <button class="btn btn--secondary btn--full-width" id="centerGraph" title="Center and fit graph to view">
+                    <span class="key">C</span> Center & Fit
+                </button>
+            </div>
+
+            <div class="command-section">
+                <h3>View Controls</h3>
+                <div class="button-group">
+                    <button class="btn btn--outline" id="zoomIn" title="Increase zoom level">
+                        <span class="key">Z+</span> Zoom In
+                    </button>
+                    <button class="btn btn--outline" id="zoomOut" title="Decrease zoom level">
+                        <span class="key">Z-</span> Zoom Out
+                    </button>
+                </div>
+                <button class="btn btn--secondary btn--full-width" id="toggleDisplay" title="Switch between colors and vertex indices">
+                    <span class="key">T</span> Toggle Display
+                </button>
+                <button class="btn btn--outline btn--full-width" id="redrawOptimize" title="Optimize layout and verify integrity">
+                    Redraw & Verify Integrity
+                </button>
+            </div>
+
+            <div class="command-section">
+                <h3>Segment Selection</h3>
+                <div class="segment-info">
+                    <div class="segment-status" id="segmentStatus">
+                        No segment selected
+                    </div>
+                    <div class="segment-vertices" id="segmentVertices">
+                        Select two periphery vertices
+                    </div>
+                    <div class="intersection-preview" id="intersectionPreview">
+                        Preview shows valid placement
+                    </div>
+                </div>
+                <button class="btn btn--outline btn--full-width" id="clearSelection" title="Clear current segment selection">
+                    Clear Selection
+                </button>
+                <button class="btn btn--outline btn--full-width" id="addSelection" title="Add current segment selection">
+                    Add Selection
+                </button>
+            </div>
+
+            <div class="command-section">
+                <h3>Graph Statistics</h3>
+                <div class="stats">
+                    <div class="stat-item">
+                        <label>Vertices:</label>
+                        <span id="vertexCount">3</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Edges:</label>
+                        <span id="edgeCount">3</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Periphery:</label>
+                        <span id="peripheryCount">3</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Planarity:</label>
+                        <span id="planarityStatus" class="status status--success">✓ Confirmed</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="command-section validation-info">
+                <h3>Intersection Prevention</h3>
+                <div class="validation-layers">
+                    <div class="validation-layer">
+                        <span class="layer-name">Geometric Constraints</span>
+                        <span class="layer-status status--success">✓</span>
+                    </div>
+                    <div class="validation-layer">
+                        <span class="layer-name">Edge Intersection Tests</span>
+                        <span class="layer-status status--success">✓</span>
+                    </div>
+                    <div class="validation-layer">
+                        <span class="layer-name">Planar Graph Properties</span>
+                        <span class="layer-status status--success">✓</span>
+                    </div>
+                </div>
+                <div class="validation-details">
+                    <small>All operations validated through 3-layer system with CCW intersection algorithm</small>
+                </div>
+                
+            </div>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <div class="canvas-container">
+            <canvas id="graphCanvas"></canvas>
+            <div class="status-bar">
+                <div class="status-left">
+                    <span id="currentMode">Normal Mode</span>
+                    <span id="mouseCoords"></span>
+                </div>
+                <div class="status-right">
+                    <span id="zoomLevel">Zoom: 100%</span>
+                    <!-- <span class="crossing-status">🚫 No Crossings</span> -->
+                </div>
+            </div>
+            
+            <!-- Error/Info Messages -->
+            <div id="messageContainer" class="message-container"></div>
+            
+            <!-- Legend -->
+            <div class="legend">
+                <h4>Legend</h4>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #e74c3c;"></div>
+                        <span>Periphery Vertices</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #9b59b6;"></div>
+                        <span>Selected Endpoints</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #f39c12;"></div>
+                        <span>Segment Vertices</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color preview-color"></div>
+                        <span>Preview Vertex</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
