@@ -502,23 +502,21 @@ class Graph {
             return { success: false, message: "Need at least 2 periphery vertices" };
         }
 
-        // Pick a random single periphery index
+        // Pick two random periphery indices (can be non-consecutive)
         const startIdx = Math.floor(Math.random() * this.periphery.length);
-        const endIdx = (startIdx + 1) % this.periphery.length;
-
-        // Only allow segments between consecutive vertices (no wrap-around from last to first)
-        if ((startIdx === this.periphery.length - 1 && endIdx === 0) || (startIdx === 0 && endIdx === this.periphery.length - 1)) {
-            return { success: false, message: "periphery vertices Not allowed please Redraw and verify integrity(no wrap-around)" };
+        let endIdx = Math.floor(Math.random() * this.periphery.length);
+        while (endIdx === startIdx) {
+            endIdx = Math.floor(Math.random() * this.periphery.length);
         }
 
         // Get segment between startIdx and endIdx (inclusive, clockwise)
         const segmentIndices = this.getPeripherySegment(startIdx, endIdx);
 
-        // Select endpoints for the segment (always consecutive)
+        // Select endpoints for the segment
         this.selectedVertices = [this.periphery[startIdx], this.periphery[endIdx]];
         this.segmentVertices = segmentIndices;
 
-        // Process the segment selection
+        // Only process one segment (add one vertex)
         const result = this.processSegmentSelection();
 
         // Clear the temporary selection regardless of result
