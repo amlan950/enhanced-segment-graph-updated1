@@ -502,7 +502,7 @@ class Graph {
             return { success: false, message: "Need at least 2 periphery vertices" };
         }
 
-        // Pick a random consecutive pair of periphery indices (clockwise)
+        // Pick a random single periphery index
         const startIdx = Math.floor(Math.random() * this.periphery.length);
         const endIdx = (startIdx + 1) % this.periphery.length;
 
@@ -892,6 +892,9 @@ class GraphApp {
         document.getElementById('clearSelection').addEventListener('click', (e) => {
             e.preventDefault(); this.clearSelection();
         });
+        document.getElementById('adjustHeight').addEventListener('click', (e) => {
+            e.preventDefault(); this.adjustHeight();
+        });
         
         // Canvas listeners
         const canvas = document.getElementById('graphCanvas');
@@ -908,7 +911,125 @@ class GraphApp {
             if (e.key === 'Enter') this.goToVertex();
         });
     }
-    
+    adjustHeight() {
+        // Enable interactive vertex adjustment mode
+        this.isAdjustingHeight = true;
+        this.adjustingVertexIndex = null;
+        this.isDraggingVertex = false;
+        this.isDragging = false; // Prevent graph dragging
+
+        this.showMessage('Select a vertex to adjust by clicking on it, then drag to change its position.', 'info');
+
+        // Temporarily override mouse handlers for adjustment
+        const canvas = document.getElementById('graphCanvas');
+        // Remove any previous listeners to avoid stacking
+        canvas.onmousedown = null;
+        canvas.onmousemove = null;
+        canvas.onmouseup = null;
+
+        const onMouseDown = (e) => {
+            if (!this.isAdjustingHeight) return;
+            this.isDragging = false; // Prevent graph dragging
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const vertexIndex = this.renderer.getVertexAt(x, y);
+
+            if (vertexIndex !== -1 && this.graph.vertices[vertexIndex].visible) {
+                this.adjustingVertexIndex = vertexIndex;
+                this.isDraggingVertex = true;
+                this.lastMousePos = { x, y };
+                canvas.style.cursor = 'move';
+                this.showMessage(`Adjusting vertex V${this.graph.vertices[vertexIndex].id}. Drag to change position.`, 'info');
+            }
+        };
+
+        const onMouseMove = (e) => {
+            if (!this.isAdjustingHeight || !this.isDraggingVertex || this.adjustingVertexIndex === null) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const worldPos = this.renderer.screenToWorld(x, y);
+            const vertex = this.graph.vertices[this.adjustingVertexIndex];
+            vertex.x = worldPos.x;
+            vertex.y = worldPos.y;
+            this.graph.updatePeriphery();
+            this.renderer.render();
+        };
+
+        const onMouseUp = (e) => {
+            if (!this.isAdjustingHeight) return;
+            this.isDraggingVertex = false;
+            if (this.adjustingVertexIndex !== null) {
+                const vertex = this.graph.vertices[this.adjustingVertexIndex];
+                this.showMessage(`Vertex V${vertex.id} position adjusted to (${Math.round(vertex.x)}, ${Math.round(vertex.y)})`, 'success');
+                this.adjustingVertexIndex = null;
+            }
+            canvas.style.cursor = this.graph.manualMode ? 'crosshair' : 'grab';
+            // End adjustment mode
+            this.isAdjustingHeight = false;
+            // Remove listeners
+            canvas.removeEventListener('mousedown', onMouseDown);
+            canvas.removeEventListener('mousemove', onMouseMove);
+            canvas.removeEventListener('mouseup', onMouseUp);
+            // Restore default handlers
+            this.setupEventListeners();
+        };
+
+        // Attach listeners
+        canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('mouseup', onMouseUp);
+    }
+
+    // Enable dragging of individual vertices
+    handleMouseDown(e) {
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const vertexIndex = this.renderer.getVertexAt(x, y);
+
+        // Reset dragging flags to avoid confusion
+        this.isDragging = false;
+        this.isDraggingVertex = false;
+        this.draggedVertexIndex = null;
+
+        if (this.graph.manualMode && vertexIndex !== -1 && this.graph.periphery.includes(vertexIndex)) {
+            if (this.graph.selectedVertices.includes(vertexIndex)) {
+                this.graph.selectedVertices = this.graph.selectedVertices.filter(i => i !== vertexIndex);
+            } else if (this.graph.selectedVertices.length < 2) {
+                this.graph.selectedVertices.push(vertexIndex);
+                const vertex = this.graph.vertices[vertexIndex];
+                this.showMessage(`Selected vertex V${vertex.id}`, 'info');
+            }
+            this.updateSegmentVisualization();
+            if (this.graph.selectedVertices.length === 2) {
+                const result = this.graph.processSegmentSelection();
+                this.showDetailedMessage(result.message, result.success ? 'success' : 'error');
+                this.updateUI();
+            }
+            this.renderer.render();
+            e.target.style.cursor = 'crosshair';
+        } else if (vertexIndex !== -1) {
+            // Start dragging a vertex
+            this.isDraggingVertex = true;
+            this.draggedVertexIndex = vertexIndex;
+            this.lastMousePos = { x, y };
+            e.target.style.cursor = 'move';
+        } else {
+            // Start dragging the whole graph (pan)
+            this.isDragging = true;
+            this.lastMousePos = { x, y };
+        }
+    }
+
+    handleMouseUp(e) {
+        this.isDragging = false;
+        this.isDraggingVertex = false;
+        this.draggedVertexIndex = null;
+        e.target.style.cursor = this.graph.manualMode ? 'crosshair' : 'grab';
+    }
     startTriangle() {
         this.graph.initializeTriangle();
         this.graph.manualMode = false;
@@ -1029,7 +1150,8 @@ class GraphApp {
         const y = e.clientY - rect.top;
         
         const vertexIndex = this.renderer.getVertexAt(x, y);
-        
+
+        // Only select/deselect periphery vertex in manual mode, otherwise drag
         if (this.graph.manualMode && vertexIndex !== -1 && this.graph.periphery.includes(vertexIndex)) {
             if (this.graph.selectedVertices.includes(vertexIndex)) {
                 // Deselect
@@ -1054,6 +1176,9 @@ class GraphApp {
             }
             
             this.renderer.render();
+            // Prevent dragging when clicking a periphery vertex in manual mode
+            this.isDragging = false;
+            e.target.style.cursor = 'crosshair';
         } else {
             // Start dragging
             this.isDragging = true;
