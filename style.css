@@ -1089,7 +1089,7 @@ select.form-control {
 
 /* Legend Styles */
 .legend {
-  position: absolute;
+  /* position: absolute; */
   bottom: var(--space-16);
   left: var(--space-16);
   background-color: var(--color-surface);
