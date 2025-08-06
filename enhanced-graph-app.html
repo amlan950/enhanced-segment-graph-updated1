@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Enhanced Planar Triangulated Graph Editor</title>
+<style>
+  html, body { 
+    margin: 0; 
+    padding: 0; 
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  body { 
+    background: #f5f5f5; 
+    display: flex;
+    height: 100vh;
+  }
+  .sidebar {
+    width: 280px;
+    background: white;
+    border-right: 1px solid #ddd;
+    padding: 20px;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+    overflow-y: auto;
+  }
+  .main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  #canvas {
+    flex: 1;
+    background: white;
+    cursor: crosshair;
+    display: block;
+  }
+  .status-bar {
+    background: #333;
+    color: white;
+    padding: 8px 16px;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .btn-group {
+    margin-bottom: 20px;
+  }
+  .btn-group h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #333;
+  }
+  button {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  button:hover {
+    background: #f0f0f0;
+    border-color: #007bff;
+  }
+  button.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .input-group {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 15px;
+  }
+  .info {
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 15px;
+  }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="btn-group">
+    <h3>Graph Operations</h3>
+    <button id="startBtn" onclick="startGraph()">S: Start Triangle</button>
+    <button id="randomBtn" onclick="addRandomVertex()">R: Add Random Vertex</button>
+    <button id="manualBtn" onclick="toggleManualMode()">A: Manual Add Mode</button>
+  </div>
+
+  <div class="btn-group">
+    <h3>Navigation</h3>
+    <div class="input-group">
+      <input type="number" id="vertexLimit" placeholder="Vertex limit" min="3">
+      <button onclick="goToVertex()">Gm: Go</button>
+    </div>
+    <button onclick="centerGraph()">C: Center & Fit</button>
+  </div>
+
+  <div class="btn-group">
+    <h3>View Controls</h3>
+    <button onclick="zoomIn()">Z+: Zoom In</button>
+    <button onclick="zoomOut()">Z-: Zoom Out</button>
+    <button onclick="toggleDisplay()">T: Toggle Display</button>
+    <button onclick="redrawGraph()">Redraw & Optimize</button>
+  </div>
+
+  <div id="modeInfo" class="info" style="display:none">
+    Manual Mode: Click two periphery vertices to add a new vertex between them.
+  </div>
+  
+  <div id="warningMsg" class="warning" style="display:none"></div>
+</div>
+
+<div class="main-area">
+  <canvas id="canvas"></canvas>
+  <div class="status-bar">
+    <span id="statusLeft">Ready</span>
+    <span id="statusRight">Vertices: 0 | Edges: 0</span>
+  </div>
+</div>
+
+<script>
+// Enhanced Graph Editor with strict collision detection
+class EnhancedGraphEditor {
+  constructor() {
+    this.canvas = document.getElementById('canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.setupCanvas();
+    
+    // Graph data
+    this.vertices = [];
+    this.edges = [];
+    this.periphery = [];
+    this.nextId = 1;
+    
+    // Display settings
+    this.zoom = 1.0;
+    this.panX = 0;
+    this.panY = 0;
+    this.showIndices = false;
+    this.vertexRadius = 20;
+    
+    // Interaction state
+    this.manualMode = false;
+    this.selectedVertices = [];
+    this.hoveredVertex = null;
+    this.isDragging = false;
+    this.dragStart = {x: 0, y: 0};
+    
+    // Colors
+    this.colors = {
+      vertex: '#3498db',
+      periphery: '#e74c3c',
+      edge: '#2c3e50',
+      peripheryEdge: '#f39c12',
+      selected: '#9b59b6',
+      hover: '#1abc9c'
+    };
+    
+    this.setupEventListeners();
+    this.updateStatus();
+  }
+  
+  setupCanvas() {
+    this.resizeCanvas();
+    window.addEventListener('resize', () => this.resizeCanvas());
+  }
+  
+  resizeCanvas() {
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.ctx.scale(dpr, dpr);
+    this.canvas.style.width = rect.width + 'px';
+    this.canvas.style.height = rect.height + 'px';
+    this.redraw();
+  }
+  
+  setupEventListeners() {
+    this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+    this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+    this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+    this.canvas.addEventListener('wheel', (e) => this.onWheel(e));
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      switch(e.key.toLowerCase()) {
+        case 's': this.startGraph(); break;
+        case 'r': this.addRandomVertex(); break;
+        case 'a': this.toggleManualMode(); break;
+        case 'c': this.centerGraph(); break;
+        case 't': this.toggleDisplay(); break;
+        case '+': case '=': this.zoomIn(); break;
+        case '-': this.zoomOut(); break;
+      }
+    });
+  }
+  
+  // Coordinate transformations
+  screenToWorld(x, y) {
+    const rect = this.canvas.getBoundingClientRect();
+    const worldX = (x - rect.width/2) / this.zoom - this.panX;
+    const worldY = (y - rect.height/2) / this.zoom - this.panY;
+    return {x: worldX, y: worldY};
+  }
+  
+  worldToScreen(x, y) {
+    const rect = this.canvas.getBoundingClientRect();
+    const screenX = (x + this.panX) * this.zoom + rect.width/2;
+    const screenY = (y + this.panY) * this.zoom + rect.height/2;
+    return {x: screenX, y: screenY};
+  }
+  
+  // Geometric utilities
+  distance(p1, p2) {
+    return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+  }
+  
+  // Line segment intersection test
+  segmentsIntersect(p1, p2, p3, p4) {
+    const ccw = (A, B, C) => (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+    return (ccw(p1, p3, p4) !== ccw(p2, p3, p4)) && (ccw(p1, p2, p3) !== ccw(p1, p2, p4));
+  }
+  
+  // Point-to-line distance
+  pointToLineDistance(point, lineStart, lineEnd) {
+    const A = lineEnd.x - lineStart.x;
+    const B = lineEnd.y - lineStart.y;
+    const C = point.x - lineStart.x;
+    const D = point.y - lineStart.y;
+    
+    const dot = A * C + B * D;
+    const lenSq = A * A + B * B;
+    
+    if (lenSq === 0) return this.distance(point, lineStart);
+    
+    let param = dot / lenSq;
+    param = Math.max(0, Math.min(1, param));
+    
+    const xx = lineStart.x + param * A;
+    const yy = lineStart.y + param * B;
+    
+    return this.distance(point, {x: xx, y: yy});
+  }
+  
+  // Check if new vertex position is valid (no overlaps)
+  isValidPosition(newPos) {
+    // Check vertex-vertex overlaps
+    for (let vertex of this.vertices) {
+      if (this.distance(newPos, vertex) < this.vertexRadius * 2.2) {
+        return false;
+      }
+    }
+    
+    // Check vertex-edge overlaps
+    for (let edge of this.edges) {
+      const v1 = this.vertices[edge[0]];
+      const v2 = this.vertices[edge[1]];
+      if (this.pointToLineDistance(newPos, v1, v2) < this.vertexRadius * 1.1) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+  
+  // Check if new edges would intersect existing edges
+  wouldEdgesIntersect(newEdges) {
+    for (let newEdge of newEdges) {
+      const v1 = newEdge[0] < this.vertices.length ? this.vertices[newEdge[0]] : newEdge[0];
+      const v2 = newEdge[1] < this.vertices.length ? this.vertices[newEdge[1]] : newEdge[1];
+      
+      for (let existingEdge of this.edges) {
+        const e1 = this.vertices[existingEdge[0]];
+        const e2 = this.vertices[existingEdge[1]];
+        
+        // Skip if edges share a vertex
+        if (newEdge[0] === existingEdge[0] || newEdge[0] === existingEdge[1] ||
+            newEdge[1] === existingEdge[0] || newEdge[1] === existingEdge[1]) {
+          continue;
+        }
+        
+        if (this.segmentsIntersect(v1, v2, e1, e2)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  
+  // Find position outside current graph for new vertex
+  findOutsidePosition(startIdx, endIdx) {
+    const periLength = this.periphery.length;
+    const vertices = [];
+    
+    // Get all vertices from startIdx to endIdx (clockwise)
+    let idx = startIdx;
+    while (true) {
+      vertices.push(this.periphery[idx]);
+      if (idx === endIdx) break;
+      idx = (idx + 1) % periLength;
+    }
+    
+    // Find centroid of selected vertices
+    let centroid = {x: 0, y: 0};
+    for (let vIdx of vertices) {
+      centroid.x += this.vertices[vIdx].x;
+      centroid.y += this.vertices[vIdx].y;
+    }
+    centroid.x /= vertices.length;
+    centroid.y /= vertices.length;
+    
+    // Find graph center
+    let graphCenter = {x: 0, y: 0};
+    for (let vertex of this.vertices) {
+      graphCenter.x += vertex.x;
+      graphCenter.y += vertex.y;
+    }
+    graphCenter.x /= this.vertices.length;
+    graphCenter.y /= this.vertices.length;
+    
+    // Direction from graph center to centroid
+    let direction = {
+      x: centroid.x - graphCenter.x,
+      y: centroid.y - graphCenter.y
+    };
+    
+    const len = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
+    if (len > 0) {
+      direction.x /= len;
+      direction.y /= len;
+    }
+    
+    // Find a valid position by moving outward
+    let distance = this.vertexRadius * 3;
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    while (attempts < maxAttempts) {
+      const candidate = {
+        x: centroid.x + direction.x * distance,
+        y: centroid.y + direction.y * distance
+      };
+      
+      if (this.isValidPosition(candidate)) {
+        return candidate;
+      }
+      
+      distance += this.vertexRadius;
+      attempts++;
+    }
+    
+    // If still no valid position, try different angles
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+      const candidate = {
+        x: centroid.x + Math.cos(angle) * distance,
+        y: centroid.y + Math.sin(angle) * distance
+      };
+      
+      if (this.isValidPosition(candidate)) {
+        return candidate;
+      }
+    }
+    
+    return null; // No valid position found
+  }
+  
+  // Add vertex between two periphery indices
+  addPeripheryVertex(startIdx, endIdx) {
+    if (this.periphery.length < 2) {
+      this.showWarning("Need at least 2 periphery vertices");
+      return false;
+    }
+    
+    // Ensure we have at least 2 vertices in the range
+    const periLength = this.periphery.length;
+    let count = 0;
+    let idx = startIdx;
+    while (true) {
+      count++;
+      if (idx === endIdx) break;
+      idx = (idx + 1) % periLength;
+    }
+    
+    if (count < 2) {
+      this.showWarning("Must select at least 2 contiguous periphery vertices");
+      return false;
+    }
+    
+    // Find valid position outside graph
+    const newPos = this.findOutsidePosition(startIdx, endIdx);
+    if (!newPos) {
+      this.showWarning("Cannot find valid position outside graph");
+      return false;
+    }
+    
+    // Collect vertices to connect to
+    const connectTo = [];
+    idx = startIdx;
+    while (true) {
+      connectTo.push(this.periphery[idx]);
+      if (idx === endIdx) break;
+      idx = (idx + 1) % periLength;
+    }
+    
+    // Check if edges would intersect
+    const newEdges = connectTo.map(vIdx => [this.vertices.length, vIdx]);
+    if (this.wouldEdgesIntersect(newEdges.map(edge => [newPos, this.vertices[edge[1]]]))) {
+      this.showWarning("New edges would intersect existing edges");
+      return false;
+    }
+    
+    // Add the vertex
+    const newVertexIdx = this.vertices.length;
+    this.vertices.push(newPos);
+    
+    // Add edges
+    for (let vIdx of connectTo) {
+      this.edges.push([newVertexIdx, vIdx]);
+    }
+    
+    // Update periphery
+    const newPeriphery = [];
+    for (let i = 0; i < periLength; i++) {
+      if (i === startIdx) {
+        newPeriphery.push(newVertexIdx);
+      }
+      if (i < startIdx || i > endIdx || (startIdx > endIdx && (i > endIdx && i < startIdx))) {
+        newPeriphery.push(this.periphery[i]);
+      }
+    }
+    this.periphery = newPeriphery;
+    
+    this.updateStatus();
+    this.redraw();
+    return true;
+  }
+  
+  // Graph operations
+  startGraph() {
+    this.vertices = [];
+    this.edges = [];
+    this.periphery = [];
+    this.selectedVertices = [];
+    this.nextId = 1;
+    
+    // Create equilateral triangle
+    const size = 150;
+    const centerX = 0, centerY = 0;
+    
+    for (let i = 0; i < 3; i++) {
+      const angle = (Math.PI / 2) + (i * 2 * Math.PI / 3);
+      this.vertices.push({
+        x: centerX + size * Math.cos(angle),
+        y: centerY + size * Math.sin(angle)
+      });
+      this.periphery.push(i);
+    }
+    
+    // Add triangle edges
+    this.edges = [[0, 1], [1, 2], [2, 0]];
+    
+    this.updateStatus("Started with basic triangle");
+    this.redraw();
+  }
+  
+  addRandomVertex() {
+    if (this.periphery.length < 2) {
+      this.showWarning("Need at least 2 periphery vertices");
+      return;
+    }
+    
+    const periLength = this.periphery.length;
+    const minSpan = 2;
+    const maxSpan = Math.min(periLength, 5);
+    const span = minSpan + Math.floor(Math.random() * (maxSpan - minSpan + 1));
+    
+    const startIdx = Math.floor(Math.random() * periLength);
+    const endIdx = (startIdx + span - 1) % periLength;
+    
+    if (this.addPeripheryVertex(startIdx, endIdx)) {
+      this.updateStatus("Added random vertex");
+    }
+  }
+  
+  toggleManualMode() {
+    this.manualMode = !this.manualMode;
+    this.selectedVertices = [];
+    
+    const btn = document.getElementById('manualBtn');
+    const info = document.getElementById('modeInfo');
+    
+    if (this.manualMode) {
+      btn.classList.add('active');
+      btn.textContent = 'A: Exit Manual Mode';
+      info.style.display = 'block';
+      this.updateStatus("Manual mode: Click two periphery vertices");
+    } else {
+      btn.classList.remove('active');
+      btn.textContent = 'A: Manual Add Mode';
+      info.style.display = 'none';
+      this.updateStatus("Manual mode disabled");
+    }
+    
+    this.redraw();
+  }
+  
+  // Mouse handlers
+  onMouseDown(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const world = this.screenToWorld(x, y);
+    
+    if (this.manualMode) {
+      // Check for periphery vertex click
+      const periVertex = this.findPeripheryVertexAt(world);
+      if (periVertex !== -1) {
+        this.selectedVertices.push(periVertex);
+        
+        if (this.selectedVertices.length === 2) {
+          // Attempt to add vertex
+          const start = this.selectedVertices[0];
+          const end = this.selectedVertices[1];
+          
+          if (this.addPeripheryVertex(start, end)) {
+            this.updateStatus("Added vertex between periphery vertices");
+          }
+          
+          this.selectedVertices = [];
+        } else {
+          this.updateStatus(`Selected ${this.selectedVertices.length}/2 periphery vertices`);
+        }
+        
+        this.redraw();
+        return;
+      }
+    }
+    
+    // Start panning
+    this.isDragging = true;
+    this.dragStart = {x, y};
+  }
+  
+  onMouseMove(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const world = this.screenToWorld(x, y);
+    
+    if (this.isDragging && !this.manualMode) {
+      // Pan the view
+      const dx = x - this.dragStart.x;
+      const dy = y - this.dragStart.y;
+      
+      this.panX += dx / this.zoom;
+      this.panY += dy / this.zoom;
+      
+      this.dragStart = {x, y};
+      this.redraw();
+      return;
+    }
+    
+    // Update hover state
+    const oldHover = this.hoveredVertex;
+    this.hoveredVertex = this.findVertexAt(world);
+    
+    if (oldHover !== this.hoveredVertex) {
+      this.redraw();
+    }
+  }
+  
+  onMouseUp(e) {
+    this.isDragging = false;
+  }
+  
+  onWheel(e) {
+    e.preventDefault();
+    
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    this.zoom = Math.max(0.1, Math.min(5.0, this.zoom * zoomFactor));
+    
+    this.redraw();
+  }
+  
+  // Utility functions
+  findVertexAt(world) {
+    for (let i = 0; i < this.vertices.length; i++) {
+      if (this.distance(world, this.vertices[i]) < this.vertexRadius / this.zoom) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  
+  findPeripheryVertexAt(world) {
+    for (let i = 0; i < this.periphery.length; i++) {
+      const vIdx = this.periphery[i];
+      if (this.distance(world, this.vertices[vIdx]) < this.vertexRadius / this.zoom) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  
+  centerGraph() {
+    if (this.vertices.length === 0) return;
+    
+    // Find bounds
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    
+    for (let vertex of this.vertices) {
+      minX = Math.min(minX, vertex.x);
+      maxX = Math.max(maxX, vertex.x);
+      minY = Math.min(minY, vertex.y);
+      maxY = Math.max(maxY, vertex.y);
+    }
+    
+    // Center the view
+    this.panX = -(minX + maxX) / 2;
+    this.panY = -(minY + maxY) / 2;
+    
+    // Fit to canvas
+    const rect = this.canvas.getBoundingClientRect();
+    const graphWidth = maxX - minX + this.vertexRadius * 4;
+    const graphHeight = maxY - minY + this.vertexRadius * 4;
+    
+    const scaleX = rect.width / graphWidth;
+    const scaleY = rect.height / graphHeight;
+    this.zoom = Math.min(scaleX, scaleY, 2.0);
+    
+    this.redraw();
+    this.updateStatus("Centered and fitted graph");
+  }
+  
+  zoomIn() {
+    this.zoom = Math.min(5.0, this.zoom * 1.2);
+    this.redraw();
+  }
+  
+  zoomOut() {
+    this.zoom = Math.max(0.1, this.zoom / 1.2);
+    this.redraw();
+  }
+  
+  toggleDisplay() {
+    this.showIndices = !this.showIndices;
+    this.redraw();
+    this.updateStatus(this.showIndices ? "Showing indices" : "Showing colors");
+  }
+  
+  goToVertex() {
+    const limit = parseInt(document.getElementById('vertexLimit').value);
+    if (!limit || limit < 1) {
+      this.showWarning("Enter a valid vertex limit");
+      return;
+    }
+    
+    // Hide vertices beyond limit
+    for (let i = 0; i < this.vertices.length; i++) {
+      this.vertices[i].visible = i < limit;
+    }
+    
+    this.redraw();
+    this.updateStatus(`Showing vertices 1-${Math.min(limit, this.vertices.length)}`);
+  }
+  
+  redrawGraph() {
+    // Simple optimization: ensure roughly equal spacing
+    if (this.periphery.length < 3) return;
+    
+    // Calculate optimal positions for periphery vertices
+    const center = {x: 0, y: 0};
+    for (let vertex of this.vertices) {
+      center.x += vertex.x;
+      center.y += vertex.y;
+    }
+    center.x /= this.vertices.length;
+    center.y /= this.vertices.length;
+    
+    // Redistribute periphery vertices
+    const radius = 200;
+    for (let i = 0; i < this.periphery.length; i++) {
+      const angle = (i * 2 * Math.PI) / this.periphery.length;
+      const vIdx = this.periphery[i];
+      this.vertices[vIdx].x = center.x + radius * Math.cos(angle);
+      this.vertices[vIdx].y = center.y + radius * Math.sin(angle);
+    }
+    
+    this.redraw();
+    this.updateStatus("Graph optimized");
+  }
+  
+  // Drawing functions
+  redraw() {
+    const rect = this.canvas.getBoundingClientRect();
+    this.ctx.clearRect(0, 0, rect.width, rect.height);
+    
+    this.ctx.save();
+    this.ctx.translate(rect.width/2, rect.height/2);
+    this.ctx.scale(this.zoom, this.zoom);
+    this.ctx.translate(this.panX, this.panY);
+    
+    // Draw edges
+    this.drawEdges();
+    
+    // Draw periphery outline
+    this.drawPeriphery();
+    
+    // Draw vertices
+    this.drawVertices();
+    
+    this.ctx.restore();
+  }
+  
+  drawEdges() {
+    this.ctx.strokeStyle = this.colors.edge;
+    this.ctx.lineWidth = 2 / this.zoom;
+    
+    for (let edge of this.edges) {
+      const v1 = this.vertices[edge[0]];
+      const v2 = this.vertices[edge[1]];
+      
+      if (v1.visible !== false && v2.visible !== false) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(v1.x, v1.y);
+        this.ctx.lineTo(v2.x, v2.y);
+        this.ctx.stroke();
+      }
+    }
+  }
+  
+  drawPeriphery() {
+    if (this.periphery.length < 3) return;
+    
+    this.ctx.strokeStyle = this.colors.peripheryEdge;
+    this.ctx.lineWidth = 3 / this.zoom;
+    this.ctx.setLineDash([8 / this.zoom, 4 / this.zoom]);
+    
+    this.ctx.beginPath();
+    const firstVertex = this.vertices[this.periphery[0]];
+    this.ctx.moveTo(firstVertex.x, firstVertex.y);
+    
+    for (let i = 1; i < this.periphery.length; i++) {
+      const vertex = this.vertices[this.periphery[i]];
+      this.ctx.lineTo(vertex.x, vertex.y);
+    }
+    this.ctx.closePath();
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+  }
+  
+  drawVertices() {
+    const radius = this.vertexRadius / this.zoom;
+    this.ctx.lineWidth = 2 / this.zoom;
+    
+    for (let i = 0; i < this.vertices.length; i++) {
+      const vertex = this.vertices[i];
+      if (vertex.visible === false) continue;
+      
+      const isPeriphery = this.periphery.includes(i);
+      const isSelected = this.selectedVertices.includes(this.periphery.indexOf(i));
+      const isHovered = this.hoveredVertex === i;
+      
+      // Choose color
+      let fillColor = this.colors.vertex;
+      if (isSelected) fillColor = this.colors.selected;
+      else if (isHovered) fillColor = this.colors.hover;
+      else if (isPeriphery) fillColor = this.colors.periphery;
+      
+      // Draw circle
+      this.ctx.fillStyle = fillColor;
+      this.ctx.strokeStyle = '#333';
+      this.ctx.beginPath();
+      this.ctx.arc(vertex.x, vertex.y, radius, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.stroke();
+      
+      // Draw label
+      this.ctx.fillStyle = 'white';
+      this.ctx.font = `${12 / this.zoom}px Arial`;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      
+      const label = this.showIndices ? (i + 1).toString() : '●';
+      this.ctx.fillText(label, vertex.x, vertex.y);
+    }
+  }
+  
+  // UI helpers
+  updateStatus(message = '') {
+    document.getElementById('statusLeft').textContent = message || 'Ready';
+    document.getElementById('statusRight').textContent = 
+      `Vertices: ${this.vertices.length} | Edges: ${this.edges.length}`;
+  }
+  
+  showWarning(message) {
+    const warning = document.getElementById('warningMsg');
+    warning.textContent = message;
+    warning.style.display = 'block';
+    setTimeout(() => {
+      warning.style.display = 'none';
+    }, 3000);
+  }
+}
+
+// Initialize the enhanced graph editor
+let graphEditor;
+
+// Global functions for buttons
+function startGraph() { graphEditor.startGraph(); }
+function addRandomVertex() { graphEditor.addRandomVertex(); }
+function toggleManualMode() { graphEditor.toggleManualMode(); }
+function centerGraph() { graphEditor.centerGraph(); }
+function zoomIn() { graphEditor.zoomIn(); }
+function zoomOut() { graphEditor.zoomOut(); }
+function toggleDisplay() { graphEditor.toggleDisplay(); }
+function goToVertex() { graphEditor.goToVertex(); }
+function redrawGraph() { graphEditor.redrawGraph(); }
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  graphEditor = new EnhancedGraphEditor();
+  graphEditor.startGraph();
+});
+</script>
+</body>
+</html>
