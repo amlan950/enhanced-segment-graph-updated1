@@ -940,8 +940,8 @@ class GraphApp {
             const dx = vertex.x - center.x;
             const dy = vertex.y - center.y;
             const len = Math.sqrt(dx * dx + dy * dy) || 1;
-            vertex.x += (dx / len) * 20;
-            vertex.y += (dy / len) * 10;
+            vertex.x += (dx / len) * 30;
+            vertex.y += (dy / len) * 60;
             this.graph.updatePeriphery();
 
             // --- ADDED: Center and fit the graph after each step ---

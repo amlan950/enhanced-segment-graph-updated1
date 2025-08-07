@@ -994,6 +994,7 @@ select.form-control {
   cursor: crosshair;
 }
 
+
 /* Status Bar */
 .status-bar {
   display: flex;
@@ -1145,7 +1146,9 @@ select.form-control {
   color: var(--color-primary) !important;
 }
 
+
 /* Button States */
+
 .btn--active {
   background-color: var(--color-primary) !important;
   color: var(--color-btn-primary-text) !important;
