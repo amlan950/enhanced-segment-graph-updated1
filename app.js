@@ -1174,26 +1174,34 @@ class GraphApp {
         this.isAdjustingHeight = false;
         this.adjustingVertexIndex = null;
         this.isDraggingVertex = false;
+
         // Restore default mouse handlers
         const canvas = document.getElementById('graphCanvas');
         canvas.onmousedown = null;
         canvas.onmousemove = null;
         canvas.onmouseup = null;
-        this.setupEventListeners();
 
+        // Enable manual mode and set up listeners for selecting periphery vertices
         this.graph.manualMode = !this.graph.manualMode;
+
+        // Clear selections when leaving manual mode
         if (!this.graph.manualMode) {
-            // Clear selections when leaving manual mode
             this.graph.selectedVertices = [];
             this.graph.segmentVertices = [];
         }
+
         this.updateManualModeUI();
         this.updateUI();
 
         if (this.graph.manualMode) {
             this.showMessage('Manual segment mode: Select two periphery vertices. The segment will be stretched to a new vertex, connecting all in-between vertices.', 'info');
+            // Set up listeners for selecting periphery vertices
+            canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+            canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+            canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         } else {
             this.showMessage('Manual segment mode disabled', 'info');
+            this.setupEventListeners();
         }
 
         // If two periphery vertices are already selected, show the stretch preview
@@ -1261,15 +1269,79 @@ class GraphApp {
     }
     
     redrawOptimize() {
+        // Always optimize periphery and layout after any add (manual or random)
         this.graph.updatePeriphery();
+        this.renderer.centerAndFit();
+
+        // If in manual mode and a segment is selected, update the segment visualization
+        if (this.graph.manualMode && this.graph.selectedVertices.length === 2) {
+            this.updateSegmentVisualization();
+        }
+
+        // Validate planarity after optimization
         const integrityCheck = this.graph.validateGraphIntegrity();
         this.renderer.render();
         this.updateUI();
-        
+
         if (integrityCheck.valid) {
             this.showMessage('Graph optimized - planarity confirmed', 'success');
         } else {
             this.showMessage(`Graph optimization: ${integrityCheck.message}`, 'error');
+        }
+    }
+
+    // Automatically optimize after manual add
+    addRandomSegment() {
+        const result = this.graph.addRandomSegment();
+        this.showDetailedMessage(result.message, result.success ? 'success' : 'error');
+        this.redrawOptimize();
+
+        // Automatically adjust the height of the last added vertex (move it outward)
+        if (result.success) {
+            const lastVertexIdx = this.graph.vertices.length - 1;
+            const vertex = this.graph.vertices[lastVertexIdx];
+            const center = this.graph.calculateGraphCenter();
+            const dx = vertex.x - center.x;
+            const dy = vertex.y - center.y;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            vertex.x += (dx / len) * 30;
+            vertex.y += (dy / len) * 60;
+            this.graph.updatePeriphery();
+            this.renderer.centerAndFit();
+            this.renderer.render();
+            this.updateUI();
+        }
+    }
+
+    // Automatically optimize after manual segment add
+    handleMouseDown(e) {
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const vertexIndex = this.renderer.getVertexAt(x, y);
+
+        if (this.graph.manualMode && vertexIndex !== -1 && this.graph.periphery.includes(vertexIndex)) {
+            if (this.graph.selectedVertices.includes(vertexIndex)) {
+                this.graph.selectedVertices = this.graph.selectedVertices.filter(i => i !== vertexIndex);
+            } else if (this.graph.selectedVertices.length < 2) {
+                this.graph.selectedVertices.push(vertexIndex);
+                const vertex = this.graph.vertices[vertexIndex];
+                this.showMessage(`Selected vertex V${vertex.id}`, 'info');
+            }
+            this.updateSegmentVisualization();
+            if (this.graph.selectedVertices.length === 2) {
+                const result = this.graph.processSegmentSelection();
+                this.showDetailedMessage(result.message, result.success ? 'success' : 'error');
+                this.redrawOptimize();
+                this.updateUI();
+            }
+            this.renderer.render();
+            e.target.style.cursor = 'crosshair';
+        } else {
+            this.isDragging = true;
+            this.lastMousePos = { x, y };
+            e.target.style.cursor = 'grabbing';
         }
     }
     
