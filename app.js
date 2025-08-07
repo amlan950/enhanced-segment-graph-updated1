@@ -1212,14 +1212,29 @@ class GraphApp {
             this.graph.segmentVertices = [];
         }
         this.updateManualModeUI();
+        this.redrawOptimize(); // Automatically optimize after toggling manual mode
         this.updateUI();
-        
+
         if (this.graph.manualMode) {
             this.showMessage('Manual segment mode: Click two periphery vertices - preview shows potential placement', 'info');
         } else {
             this.showMessage('Manual segment mode disabled', 'info');
         }
-        
+
+        // Automatically adjust height of last vertex if manual mode is enabled and a new vertex was just added
+        if (this.graph.manualMode && this.graph.vertices.length > 3) {
+            const lastVertexIdx = this.graph.vertices.length - 1;
+            const vertex = this.graph.vertices[lastVertexIdx];
+            const center = this.graph.calculateGraphCenter();
+            const dx = vertex.x - center.x;
+            const dy = vertex.y - center.y;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            vertex.x += (dx / len) * 30;
+            vertex.y += (dy / len) * 60;
+            this.graph.updatePeriphery();
+            this.renderer.centerAndFit();
+        }
+
         this.renderer.render();
     }
     
@@ -1392,8 +1407,12 @@ class GraphApp {
                 const result = this.graph.processSegmentSelection();
                 this.showDetailedMessage(result.message, result.success ? 'success' : 'error');
                 
-                // Don't disable manual mode - keep it active for next operation
-                this.updateUI();
+                // Automatically optimize after successful manual segment add
+                if (result.success) {
+                    this.redrawOptimize();
+                } else {
+                    this.updateUI();
+                }
             }
             
             this.renderer.render();
