@@ -599,8 +599,8 @@ class GraphRenderer {
         ctx.clearRect(0, 0, width, height);
         
         this.drawEdges();
-        this.drawPeripheryOutline();
-        this.drawSegmentHighlight();
+        // this.drawPeripheryOutline();
+        // this.drawSegmentHighlight();
         this.renderIntersectionPreview();
         this.drawVertices();
     }
@@ -1538,7 +1538,7 @@ class GraphApp {
         
         document.getElementById('zoomLevel').textContent = `Zoom: ${Math.round(this.renderer.zoom * 100)}%`;
         
-        this.updateSegmentVisualization();
+        // this.updateSegmentVisualization();
     }
     
     showMessage(text, type = 'info') {
