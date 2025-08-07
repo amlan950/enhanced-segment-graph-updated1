@@ -264,83 +264,74 @@ class Graph {
     
     // Process segment selection and add vertex connecting to ALL segment vertices
     processSegmentSelection() {
+        // Ensure exactly 2 periphery vertices are selected
         if (this.selectedVertices.length !== 2) {
-            return { success: false, message: "Must select exactly 2 periphery vertices" };
+            return { success: false, message: "Select exactly 2 periphery vertices." };
         }
-        
+
         const [v1Idx, v2Idx] = this.selectedVertices;
         const p1Idx = this.periphery.indexOf(v1Idx);
         const p2Idx = this.periphery.indexOf(v2Idx);
-        
+
         if (p1Idx === -1 || p2Idx === -1) {
-            return { success: false, message: "Selected vertices must be in periphery" };
+            return { success: false, message: "Selected vertices must be in periphery." };
         }
-        
-        // Get all vertices in the segment
-        this.segmentVertices = this.getPeripherySegment(p1Idx, p2Idx);
-        
-        if (this.segmentVertices.length < 2) {
-            return { success: false, message: "Segment must contain at least 2 vertices" };
+
+        // Get all periphery vertices between p1Idx and p2Idx (inclusive, clockwise)
+        const segmentVertices = this.getPeripherySegment(p1Idx, p2Idx);
+
+        if (segmentVertices.length < 2) {
+            return { success: false, message: "Segment must contain at least 2 vertices." };
         }
-        
-        // ENHANCED: Find position that avoids ALL intersections
-        const newPosition = this.findNonIntersectingPosition(this.segmentVertices);
+
+        // Find a position outside the periphery that connects to all segment vertices
+        const newPosition = this.findNonIntersectingPosition(segmentVertices);
         if (!newPosition) {
-            // Automatically clear selection if no valid placement found
             this.selectedVertices = [];
             this.segmentVertices = [];
-            return { 
-                success: false, 
-                message: "Cannot find valid position that maintains planarity - no valid placement found after comprehensive search" 
-            };
+            return { success: false, message: "No valid outside position found for new vertex." };
         }
-        
-        // CRITICAL: Final validation before adding
-        const finalValidation = this.validateNewEdges(newPosition, this.segmentVertices);
-        if (!finalValidation.valid) {
-            return { 
-                success: false, 
-                message: `Cannot add vertex: ${finalValidation.message}` 
-            };
+
+        // Validate edges from new vertex to all segment vertices
+        const edgeValidation = this.validateNewEdges(newPosition, segmentVertices);
+        if (!edgeValidation.valid) {
+            return { success: false, message: edgeValidation.message };
         }
-        
-        // Add vertex and connect to ALL segment vertices
+
+        // Add new vertex
         const newVertexIdx = this.vertices.length;
-        this.vertices.push({ 
-            x: newPosition.x, 
-            y: newPosition.y, 
-            visible: true, 
-            id: ++this.maxVertexId 
+        this.vertices.push({
+            x: newPosition.x,
+            y: newPosition.y,
+            visible: true,
+            id: ++this.maxVertexId
         });
-        
-        // Create edges to ALL vertices in the segment
-        for (const vIdx of this.segmentVertices) {
+
+        // Connect new vertex to all segment vertices
+        for (const vIdx of segmentVertices) {
             this.edges.push([newVertexIdx, vIdx]);
         }
-        
-        // Update periphery: replace entire segment with new vertex
+
+        // Replace segment in periphery with new vertex
         this.updatePeripheryAfterSegmentReplacement(p1Idx, p2Idx, newVertexIdx);
-        
-        // STRESS TEST: Validate graph integrity after operation
+
+        // Validate graph integrity
         const integrityCheck = this.validateGraphIntegrity();
         if (!integrityCheck.valid) {
-            // Rollback if integrity is compromised
+            // Rollback if planarity violated
             this.vertices.pop();
-            this.edges = this.edges.slice(0, -this.segmentVertices.length);
+            this.edges.splice(-segmentVertices.length);
             this.updatePeriphery();
-            return { 
-                success: false, 
-                message: `Operation rolled back: ${integrityCheck.message}` 
-            };
+            return { success: false, message: integrityCheck.message };
         }
-        
-        // Clear selections
+
+        // Clear selection
         this.selectedVertices = [];
         this.segmentVertices = [];
-        
-        return { 
-            success: true, 
-            message: `Added vertex V${this.maxVertexId} connecting to segment of ${this.segmentVertices.length} vertices - planarity maintained` 
+
+        return {
+            success: true,
+            message: `Added vertex V${this.maxVertexId} outside periphery, connected to ${segmentVertices.length} segment vertices (clockwise).`
         };
     }
     
@@ -1232,7 +1223,7 @@ class GraphApp {
             const dx = vertex.x - center.x;
             const dy = vertex.y - center.y;
             const len = Math.sqrt(dx * dx + dy * dy) || 1;
-            vertex.x += (dx / len) * 30;
+            vertex.x += (dx / len) * 20;
             vertex.y += (dy / len) * 60;
             this.graph.updatePeriphery();
             this.renderer.centerAndFit();
