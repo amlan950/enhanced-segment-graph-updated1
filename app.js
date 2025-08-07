@@ -527,20 +527,7 @@ class Graph {
         return result;
     }
     
-    toggleManualMode() {
-        this.graph.manualMode = !this.graph.manualMode;
-        this.graph.selectedVertices = [];
-        this.updateManualModeUI();
-        this.updateUI();
-        
-        if (this.graph.manualMode) {
-            this.showMessage('Manual mode: Click two periphery vertices', 'info');
-        } else {
-            this.showMessage('Manual mode disabled', 'info');
-        }
-        
-        this.renderer.render();
-    }
+    // (Remove this duplicate toggleManualMode method. The correct implementation is further down in the class.)
 }
 
 class GraphRenderer {
@@ -893,6 +880,13 @@ class GraphApp {
         document.getElementById('adjustHeight').addEventListener('click', (e) => {
             e.preventDefault(); this.adjustHeight();
         });
+        document.getElementById('startAuto').addEventListener('click', (e) => {
+            e.preventDefault(); this.startAutomaticMode();
+        });
+        document.getElementById('stopAuto').addEventListener('click', (e) => {
+            e.preventDefault(); this.stopAutomaticMode();
+        });
+        
         
         // Canvas listeners
         const canvas = document.getElementById('graphCanvas');
@@ -908,6 +902,61 @@ class GraphApp {
         document.getElementById('goToVertex').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.goToVertex();
         });
+    }
+
+    // Automatic mode: repeatedly add random segments and adjust height
+    startAutomaticMode() {
+        if (this.isAutomaticRunning) return;
+        this.isAutomaticRunning = true;
+        this.showMessage('Automatic mode started: adding random vertices and adjusting height...', 'info');
+
+        const runStep = () => {
+            if (!this.isAutomaticRunning) return;
+
+            // Try to add random segment until success or user stops
+            let result;
+            let attempts = 0;
+            const maxAttempts = 100; // Prevent infinite loop
+
+            do {
+                result = this.graph.addRandomSegment();
+                attempts++;
+            } while (!result.success && attempts < maxAttempts && this.isAutomaticRunning);
+
+            if (!result.success) {
+                // No valid segment found, but keep trying unless stopped by user
+                setTimeout(runStep, 400);
+                return;
+            }
+
+            this.showDetailedMessage(result.message, 'success');
+            this.renderer.render();
+            this.updateUI();
+
+            // Adjust height of the last added vertex (move it slightly outward)
+            const lastVertexIdx = this.graph.vertices.length - 1;
+            const vertex = this.graph.vertices[lastVertexIdx];
+            const center = this.graph.calculateGraphCenter();
+            const dx = vertex.x - center.x;
+            const dy = vertex.y - center.y;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            vertex.x += (dx / len) * 20;
+            vertex.y += (dy / len) * 10;
+            this.graph.updatePeriphery();
+
+            // --- ADDED: Center and fit the graph after each step ---
+            this.renderer.centerAndFit();
+
+            // Continue after short delay
+            setTimeout(runStep, 600);
+        };
+
+        runStep();
+    }
+
+    stopAutomaticMode() {
+        this.isAutomaticRunning = false;
+        this.showMessage('Automatic mode stopped by user.', 'info');
     }
     adjustHeight() {
         // Enable interactive vertex adjustment mode
@@ -1044,6 +1093,74 @@ class GraphApp {
         this.updateUI();
     }
     
+    // toggleManualMode() {
+    //     // Stop automatic mode if running
+    //     if (this.isAutomaticRunning) {
+    //         this.stopAutomaticMode();
+    //     }
+    //     // Reset any adjustment mode
+    //     this.isAdjustingHeight = false;
+    //     this.adjustingVertexIndex = null;
+    //     this.isDraggingVertex = false;
+    //     // Restore default mouse handlers
+    //     const canvas = document.getElementById('graphCanvas');
+    //     canvas.onmousedown = null;
+    //     canvas.onmousemove = null;
+    //     canvas.onmouseup = null;
+    //     this.setupEventListeners();
+
+    //     this.graph.manualMode = !this.graph.manualMode;
+    //     if (!this.graph.manualMode) {
+    //         // Clear selections when leaving manual mode
+    //         this.graph.selectedVertices = [];
+    //         this.graph.segmentVertices = [];
+    //     }
+    //     this.updateManualModeUI();
+    //     this.updateUI();
+
+    //     if (this.graph.manualMode) {
+    //         this.showMessage('Manual segment mode: Select two periphery vertices. The segment will be stretched to a new vertex, connecting all in-between vertices.', 'info');
+    //     } else {
+    //         this.showMessage('Manual segment mode disabled', 'info');
+    //     }
+
+    //     // If two periphery vertices are already selected, show the stretch preview
+    //     if (this.graph.manualMode && this.graph.selectedVertices.length === 2) {
+    //         const [v1Idx, v2Idx] = this.graph.selectedVertices;
+    //         const p1Idx = this.graph.periphery.indexOf(v1Idx);
+    //         const p2Idx = this.graph.periphery.indexOf(v2Idx);
+    //         if (p1Idx !== -1 && p2Idx !== -1) {
+    //             // Get all in-between vertices in the segment
+    //             const segmentVertices = this.graph.getPeripherySegment(p1Idx, p2Idx);
+    //             this.graph.segmentVertices = segmentVertices;
+    //             // Show preview (renderer will handle drawing the stretched lines)
+    //             this.renderer.render();
+    //         }
+    //     } else {
+    //         this.renderer.render();
+    //     }
+    // }
+    
+    // clearSelection() {
+    //     this.graph.selectedVertices = [];
+    //     this.graph.segmentVertices = [];
+    //     this.renderer.render();
+    //     this.updateUI();
+    //     this.showMessage('Selection cleared', 'info');
+    // }
+    
+    // updateManualModeUI() {
+    //     const canvas = document.getElementById('graphCanvas');
+    //     const button = document.getElementById('manualMode');
+        
+    //     if (this.graph.manualMode) {
+    //         canvas.classList.add('manual-mode');
+    //         button.classList.add('manual-mode-active');
+    //     } else {
+    //         canvas.classList.remove('manual-mode');
+    //         button.classList.remove('manual-mode-active');
+    //     }
+    // }
     toggleManualMode() {
         this.graph.manualMode = !this.graph.manualMode;
         if (!this.graph.manualMode) {
@@ -1083,7 +1200,6 @@ class GraphApp {
             button.classList.remove('manual-mode-active');
         }
     }
-    
     centerGraph() {
         this.renderer.centerAndFit();
         this.updateUI();
@@ -1262,11 +1378,14 @@ class GraphApp {
         switch (e.key.toLowerCase()) {
             case 's': e.preventDefault(); this.startTriangle(); break;
             case 'r': e.preventDefault(); this.addRandomSegment(); break;
-            case 'a': e.preventDefault(); this.toggleManualMode(); break;
+            case 'm': e.preventDefault(); this.toggleManualMode(); break;
             case 'c': e.preventDefault(); this.centerGraph(); break;
             case 't': e.preventDefault(); this.toggleDisplay(); break;
             case '+': case '=': e.preventDefault(); this.zoom(1.2); break;
             case '-': e.preventDefault(); this.zoom(0.8); break;
+            case 'd': e.preventDefault(); this.redrawOptimize(); break;
+            case 'a': e:preventDefault(); this.startAutomaticMode(); break;
+            case 'b': e.preventDefault(); this.stopAutomaticMode(); break;
         }
     }
     
