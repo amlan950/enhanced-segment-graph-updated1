@@ -929,6 +929,10 @@ class GraphApp {
                 return;
             }
 
+            // After adding, ensure the new vertex connects to all in-between vertices
+            // The graph.addRandomSegment() already connects the new vertex to all in-between periphery vertices
+            // So nothing extra is needed here
+
             this.showDetailedMessage(result.message, 'success');
             this.renderer.render();
             this.updateUI();
@@ -944,7 +948,7 @@ class GraphApp {
             vertex.y += (dy / len) * 60;
             this.graph.updatePeriphery();
 
-            // --- ADDED: Center and fit the graph after each step ---
+            // Center and fit the graph after each step
             this.renderer.centerAndFit();
 
             // Continue after short delay
@@ -1162,6 +1166,21 @@ class GraphApp {
     //     }
     // }
     toggleManualMode() {
+        // Stop automatic mode if running
+        if (this.isAutomaticRunning) {
+            this.stopAutomaticMode();
+        }
+        // Reset any adjustment mode
+        this.isAdjustingHeight = false;
+        this.adjustingVertexIndex = null;
+        this.isDraggingVertex = false;
+        // Restore default mouse handlers
+        const canvas = document.getElementById('graphCanvas');
+        canvas.onmousedown = null;
+        canvas.onmousemove = null;
+        canvas.onmouseup = null;
+        this.setupEventListeners();
+
         this.graph.manualMode = !this.graph.manualMode;
         if (!this.graph.manualMode) {
             // Clear selections when leaving manual mode
@@ -1170,14 +1189,28 @@ class GraphApp {
         }
         this.updateManualModeUI();
         this.updateUI();
-        
+
         if (this.graph.manualMode) {
-            this.showMessage('Manual segment mode: Click two periphery vertices - preview shows potential placement', 'info');
+            this.showMessage('Manual segment mode: Select two periphery vertices. The segment will be stretched to a new vertex, connecting all in-between vertices.', 'info');
         } else {
             this.showMessage('Manual segment mode disabled', 'info');
         }
-        
-        this.renderer.render();
+
+        // If two periphery vertices are already selected, show the stretch preview
+        if (this.graph.manualMode && this.graph.selectedVertices.length === 2) {
+            const [v1Idx, v2Idx] = this.graph.selectedVertices;
+            const p1Idx = this.graph.periphery.indexOf(v1Idx);
+            const p2Idx = this.graph.periphery.indexOf(v2Idx);
+            if (p1Idx !== -1 && p2Idx !== -1) {
+                // Get all in-between vertices in the segment
+                const segmentVertices = this.graph.getPeripherySegment(p1Idx, p2Idx);
+                this.graph.segmentVertices = segmentVertices;
+                // Show preview (renderer will handle drawing the stretched lines)
+                this.renderer.render();
+            }
+        } else {
+            this.renderer.render();
+        }
     }
     
     clearSelection() {
