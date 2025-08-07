@@ -600,7 +600,7 @@ class GraphRenderer {
         
         this.drawEdges();
         // this.drawPeripheryOutline();
-        // this.drawSegmentHighlight();
+        this.drawSegmentHighlight();
         this.renderIntersectionPreview();
         this.drawVertices();
     }
