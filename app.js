@@ -286,6 +286,9 @@ class Graph {
         // ENHANCED: Find position that avoids ALL intersections
         const newPosition = this.findNonIntersectingPosition(this.segmentVertices);
         if (!newPosition) {
+            // Automatically clear selection if no valid placement found
+            this.selectedVertices = [];
+            this.segmentVertices = [];
             return { 
                 success: false, 
                 message: "Cannot find valid position that maintains planarity - no valid placement found after comprehensive search" 
