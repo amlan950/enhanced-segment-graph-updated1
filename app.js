@@ -1097,6 +1097,9 @@ class GraphApp {
         this.updateUI();
     }
     
+    
+
+
     // toggleManualMode() {
     //     // Stop automatic mode if running
     //     if (this.isAutomaticRunning) {
@@ -1106,26 +1109,62 @@ class GraphApp {
     //     this.isAdjustingHeight = false;
     //     this.adjustingVertexIndex = null;
     //     this.isDraggingVertex = false;
+
     //     // Restore default mouse handlers
     //     const canvas = document.getElementById('graphCanvas');
     //     canvas.onmousedown = null;
     //     canvas.onmousemove = null;
     //     canvas.onmouseup = null;
-    //     this.setupEventListeners();
 
+    //     // Toggle manual mode
     //     this.graph.manualMode = !this.graph.manualMode;
+
+    //     // Clear selections when leaving manual mode
     //     if (!this.graph.manualMode) {
-    //         // Clear selections when leaving manual mode
     //         this.graph.selectedVertices = [];
     //         this.graph.segmentVertices = [];
     //     }
+
     //     this.updateManualModeUI();
     //     this.updateUI();
 
     //     if (this.graph.manualMode) {
     //         this.showMessage('Manual segment mode: Select two periphery vertices. The segment will be stretched to a new vertex, connecting all in-between vertices.', 'info');
+    //         // Set up listeners for selecting periphery vertices
+    //         canvas.addEventListener('mousedown', (e) => {
+    //             const rect = e.target.getBoundingClientRect();
+    //             const x = e.clientX - rect.left;
+    //             const y = e.clientY - rect.top;
+    //             const vertexIndex = this.renderer.getVertexAt(x, y);
+
+    //             if (this.graph.manualMode && vertexIndex !== -1 && this.graph.periphery.includes(vertexIndex)) {
+    //                 if (this.graph.selectedVertices.includes(vertexIndex)) {
+    //                     this.graph.selectedVertices = this.graph.selectedVertices.filter(i => i !== vertexIndex);
+    //                 } else if (this.graph.selectedVertices.length < 2) {
+    //                     this.graph.selectedVertices.push(vertexIndex);
+    //                     const vertex = this.graph.vertices[vertexIndex];
+    //                     this.showMessage(`Selected vertex V${vertex.id}`, 'info');
+    //                 }
+    //                 this.updateSegmentVisualization();
+    //                 if (this.graph.selectedVertices.length === 2) {
+    //                     const result = this.graph.processSegmentSelection();
+    //                     this.showDetailedMessage(result.message, result.success ? 'success' : 'error');
+    //                     this.redrawOptimize();
+    //                     this.updateUI();
+    //                 }
+    //                 this.renderer.render();
+    //                 e.target.style.cursor = 'crosshair';
+    //             } else {
+    //                 this.isDragging = true;
+    //                 this.lastMousePos = { x, y };
+    //                 e.target.style.cursor = 'grabbing';
+    //             }
+    //         });
+    //         canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+    //         canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
     //     } else {
     //         this.showMessage('Manual segment mode disabled', 'info');
+    //         this.setupEventListeners();
     //     }
 
     //     // If two periphery vertices are already selected, show the stretch preview
@@ -1166,59 +1205,22 @@ class GraphApp {
     //     }
     // }
     toggleManualMode() {
-        // Stop automatic mode if running
-        if (this.isAutomaticRunning) {
-            this.stopAutomaticMode();
-        }
-        // Reset any adjustment mode
-        this.isAdjustingHeight = false;
-        this.adjustingVertexIndex = null;
-        this.isDraggingVertex = false;
-
-        // Restore default mouse handlers
-        const canvas = document.getElementById('graphCanvas');
-        canvas.onmousedown = null;
-        canvas.onmousemove = null;
-        canvas.onmouseup = null;
-
-        // Enable manual mode and set up listeners for selecting periphery vertices
         this.graph.manualMode = !this.graph.manualMode;
-
-        // Clear selections when leaving manual mode
         if (!this.graph.manualMode) {
+            // Clear selections when leaving manual mode
             this.graph.selectedVertices = [];
             this.graph.segmentVertices = [];
         }
-
         this.updateManualModeUI();
         this.updateUI();
-
+        
         if (this.graph.manualMode) {
-            this.showMessage('Manual segment mode: Select two periphery vertices. The segment will be stretched to a new vertex, connecting all in-between vertices.', 'info');
-            // Set up listeners for selecting periphery vertices
-            canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-            canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-            canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+            this.showMessage('Manual segment mode: Click two periphery vertices - preview shows potential placement', 'info');
         } else {
             this.showMessage('Manual segment mode disabled', 'info');
-            this.setupEventListeners();
         }
-
-        // If two periphery vertices are already selected, show the stretch preview
-        if (this.graph.manualMode && this.graph.selectedVertices.length === 2) {
-            const [v1Idx, v2Idx] = this.graph.selectedVertices;
-            const p1Idx = this.graph.periphery.indexOf(v1Idx);
-            const p2Idx = this.graph.periphery.indexOf(v2Idx);
-            if (p1Idx !== -1 && p2Idx !== -1) {
-                // Get all in-between vertices in the segment
-                const segmentVertices = this.graph.getPeripherySegment(p1Idx, p2Idx);
-                this.graph.segmentVertices = segmentVertices;
-                // Show preview (renderer will handle drawing the stretched lines)
-                this.renderer.render();
-            }
-        } else {
-            this.renderer.render();
-        }
+        
+        this.renderer.render();
     }
     
     clearSelection() {
