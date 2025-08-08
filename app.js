@@ -294,8 +294,14 @@ class Graph {
             return { success: false, message: "Selected vertices must be in periphery." };
         }
 
-        // Get all periphery vertices between p1Idx and p2Idx (inclusive, clockwise)
-        const segmentVertices = this.getPeripherySegment(p1Idx, p2Idx);
+        // In manual mode, only connect to the two selected periphery vertices
+        let segmentVertices;
+        if (this.manualMode) {
+            segmentVertices = [v1Idx, v2Idx];
+        } else {
+            // Get all periphery vertices between p1Idx and p2Idx (inclusive, clockwise)
+            segmentVertices = this.getPeripherySegment(p1Idx, p2Idx);
+        }
 
         if (segmentVertices.length < 2) {
             return { success: false, message: "Segment must contain at least 2 vertices." };
@@ -348,7 +354,7 @@ class Graph {
 
         return {
             success: true,
-            message: `Added vertex V${this.maxVertexId} outside periphery, connected to ${segmentVertices.length} segment vertices (clockwise).`
+            message: `Added vertex V${this.maxVertexId} outside periphery, connected to ${segmentVertices.length} segment vertices${this.manualMode ? '' : ' (clockwise)'}.`
         };
     }
     
