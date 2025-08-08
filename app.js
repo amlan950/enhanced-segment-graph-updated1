@@ -582,6 +582,7 @@ class GraphRenderer {
         const rect = this.canvas.getBoundingClientRect();
         this.canvas.width = rect.width * window.devicePixelRatio;
         this.canvas.height = rect.height * window.devicePixelRatio;
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform before scaling
         this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
         this.canvas.style.width = rect.width + 'px';
         this.canvas.style.height = rect.height + 'px';
