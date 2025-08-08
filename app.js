@@ -113,36 +113,53 @@ class Graph {
             y: centroid.y - graphCenter.y
         });
         
-        // Try multiple distances and angles
-        const baseDistance = 80; // Start further out
-        const maxAttempts = 32; // More attempts
-        
+        // Try more distances and angles for robustness
+        const baseDistance = 80;
+        const maxAttempts = 900; // Increased attempts
+        const angleSteps = 24; // More directions
+
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             // Vary both distance and angle
-            const distance = baseDistance + (attempt * 20);
-            const angleOffset = (attempt % 8) * (Math.PI / 4); // 8 directions
-            
+            const distance = baseDistance + (attempt * 10);
+            const angleOffset = (attempt % angleSteps) * (2 * Math.PI / angleSteps);
+
             const testDirection = {
                 x: direction.x * Math.cos(angleOffset) - direction.y * Math.sin(angleOffset),
                 y: direction.x * Math.sin(angleOffset) + direction.y * Math.cos(angleOffset)
             };
-            
+
             const candidate = {
                 x: centroid.x + testDirection.x * distance,
                 y: centroid.y + testDirection.y * distance
             };
-            
+
             // First check basic constraints (vertex/edge overlaps)
             const basicValidation = this.validateBasicPosition(candidate);
             if (!basicValidation.valid) continue;
-            
+
             // CRITICAL: Check if this position would cause edge intersections
             const intersectionCheck = this.validateNewEdges(candidate, segmentVertices);
             if (intersectionCheck.valid) {
                 return candidate;
             }
         }
-        
+
+        // As a last resort, try random positions around the centroid
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const angle = Math.random() * 2 * Math.PI;
+            const distance = baseDistance + 100 + Math.random() * 200;
+            const candidate = {
+                x: centroid.x + Math.cos(angle) * distance,
+                y: centroid.y + Math.sin(angle) * distance
+            };
+            const basicValidation = this.validateBasicPosition(candidate);
+            if (!basicValidation.valid) continue;
+            const intersectionCheck = this.validateNewEdges(candidate, segmentVertices);
+            if (intersectionCheck.valid) {
+                return candidate;
+            }
+        }
+
         return null; // No valid position found
     }
     
