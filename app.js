@@ -263,121 +263,215 @@ class Graph {
     getPeripherySegment(startIdx, endIdx) {
         const segment = [];
         const n = this.periphery.length;
-        
+
         if (startIdx === endIdx) {
             return [this.periphery[startIdx]];
         }
-        
-        // Handle circular array traversal clockwise
+
+        // Always traverse clockwise from startIdx to endIdx, wrapping around if needed
         let current = startIdx;
         while (true) {
             segment.push(this.periphery[current]);
             if (current === endIdx) break;
             current = (current + 1) % n;
         }
-        
+
         return segment;
     }
     
-    // Process segment selection and add vertex connecting to ALL segment vertices
+    // // Process segment selection and add vertex connecting to ALL segment vertices
+    // processSegmentSelection() {
+    //     // Ensure exactly 2 periphery vertices are selected
+    //     if (this.selectedVertices.length !== 2) {
+    //         return { success: false, message: "Select exactly 2 periphery vertices." };
+    //     }
+
+    //     const [v1Idx, v2Idx] = this.selectedVertices;
+    //     const p1Idx = this.periphery.indexOf(v1Idx);
+    //     const p2Idx = this.periphery.indexOf(v2Idx);
+
+    //     if (p1Idx === -1 || p2Idx === -1) {
+    //         return { success: false, message: "Selected vertices must be in periphery." };
+    //     }
+
+    //     // In manual mode, only connect to the two selected periphery vertices
+    //     let segmentVertices;
+    //     if (this.manualMode) {
+    //         segmentVertices = [v1Idx, v2Idx];
+    //     } else {
+    //         // Get all periphery vertices between p1Idx and p2Idx (inclusive, clockwise)
+    //         segmentVertices = this.getPeripherySegment(p1Idx, p2Idx);
+    //     }
+
+    //     if (segmentVertices.length < 2) {
+    //         return { success: false, message: "Segment must contain at least 2 vertices." };
+    //     }
+
+    //     // Find a position outside the periphery that connects to all segment vertices
+    //     const newPosition = this.findNonIntersectingPosition(segmentVertices);
+    //     if (!newPosition) {
+    //         this.selectedVertices = [];
+    //         this.segmentVertices = [];
+    //         return { success: false, message: "No valid outside position found for new vertex." };
+    //     }
+
+    //     // Validate edges from new vertex to all segment vertices
+    //     const edgeValidation = this.validateNewEdges(newPosition, segmentVertices);
+    //     if (!edgeValidation.valid) {
+    //         return { success: false, message: edgeValidation.message };
+    //     }
+
+    //     // Add new vertex
+    //     const newVertexIdx = this.vertices.length;
+    //     this.vertices.push({
+    //         x: newPosition.x,
+    //         y: newPosition.y,
+    //         visible: true,
+    //         id: ++this.maxVertexId
+    //     });
+
+    //     // Connect new vertex to all segment vertices
+    //     for (const vIdx of segmentVertices) {
+    //         this.edges.push([newVertexIdx, vIdx]);
+    //     }
+
+    //     // Replace segment in periphery with new vertex
+    //     this.updatePeripheryAfterSegmentReplacement(p1Idx, p2Idx, newVertexIdx);
+
+    //     // Validate graph integrity
+    //     const integrityCheck = this.validateGraphIntegrity();
+    //     if (!integrityCheck.valid) {
+    //         // Rollback if planarity violated
+    //         this.vertices.pop();
+    //         this.edges.splice(-segmentVertices.length);
+    //         this.updatePeriphery();
+    //         return { success: false, message: integrityCheck.message };
+    //     }
+
+    //     // Clear selection
+    //     this.selectedVertices = [];
+    //     this.segmentVertices = [];
+
+    //     return {
+    //         success: true,
+    //         message: `Added vertex V${this.maxVertexId} outside periphery, connected to ${segmentVertices.length} segment vertices${this.manualMode ? '' : ' (clockwise)'}.`
+    //     };
+    // }
+    
+
     processSegmentSelection() {
-        // Ensure exactly 2 periphery vertices are selected
-        if (this.selectedVertices.length !== 2) {
-            return { success: false, message: "Select exactly 2 periphery vertices." };
-        }
+    // Ensure exactly 2 periphery vertices are selected
+    if (this.selectedVertices.length !== 2) {
+        return { success: false, message: "Select exactly 2 periphery vertices." };
+    }
 
-        const [v1Idx, v2Idx] = this.selectedVertices;
-        const p1Idx = this.periphery.indexOf(v1Idx);
-        const p2Idx = this.periphery.indexOf(v2Idx);
+    const [v1Idx, v2Idx] = this.selectedVertices;
+    const p1Idx = this.periphery.indexOf(v1Idx);
+    const p2Idx = this.periphery.indexOf(v2Idx);
 
-        if (p1Idx === -1 || p2Idx === -1) {
-            return { success: false, message: "Selected vertices must be in periphery." };
-        }
+    if (p1Idx === -1 || p2Idx === -1) {
+        return { success: false, message: "Selected vertices must be in periphery." };
+    }
 
-        // In manual mode, only connect to the two selected periphery vertices
-        let segmentVertices;
-        if (this.manualMode) {
-            segmentVertices = [v1Idx, v2Idx];
-        } else {
-            // Get all periphery vertices between p1Idx and p2Idx (inclusive, clockwise)
-            segmentVertices = this.getPeripherySegment(p1Idx, p2Idx);
-        }
+    // Always get all periphery vertices between p1Idx and p2Idx (inclusive, clockwise)
+    const segmentVertices = this.getPeripherySegment(p1Idx, p2Idx);
 
-        if (segmentVertices.length < 2) {
-            return { success: false, message: "Segment must contain at least 2 vertices." };
-        }
+    if (segmentVertices.length < 2) {
+        return { success: false, message: "Segment must contain at least 2 vertices." };
+    }
 
-        // Find a position outside the periphery that connects to all segment vertices
-        const newPosition = this.findNonIntersectingPosition(segmentVertices);
-        if (!newPosition) {
-            this.selectedVertices = [];
-            this.segmentVertices = [];
-            return { success: false, message: "No valid outside position found for new vertex." };
-        }
-
-        // Validate edges from new vertex to all segment vertices
-        const edgeValidation = this.validateNewEdges(newPosition, segmentVertices);
-        if (!edgeValidation.valid) {
-            return { success: false, message: edgeValidation.message };
-        }
-
-        // Add new vertex
-        const newVertexIdx = this.vertices.length;
-        this.vertices.push({
-            x: newPosition.x,
-            y: newPosition.y,
-            visible: true,
-            id: ++this.maxVertexId
-        });
-
-        // Connect new vertex to all segment vertices
-        for (const vIdx of segmentVertices) {
-            this.edges.push([newVertexIdx, vIdx]);
-        }
-
-        // Replace segment in periphery with new vertex
-        this.updatePeripheryAfterSegmentReplacement(p1Idx, p2Idx, newVertexIdx);
-
-        // Validate graph integrity
-        const integrityCheck = this.validateGraphIntegrity();
-        if (!integrityCheck.valid) {
-            // Rollback if planarity violated
-            this.vertices.pop();
-            this.edges.splice(-segmentVertices.length);
-            this.updatePeriphery();
-            return { success: false, message: integrityCheck.message };
-        }
-
-        // Clear selection
+    // Find a position outside the periphery that connects to all segment vertices
+    const newPosition = this.findNonIntersectingPosition(segmentVertices);
+    if (!newPosition) {
         this.selectedVertices = [];
         this.segmentVertices = [];
-
-        return {
-            success: true,
-            message: `Added vertex V${this.maxVertexId} outside periphery, connected to ${segmentVertices.length} segment vertices${this.manualMode ? '' : ' (clockwise)'}.`
-        };
+        return { success: false, message: "No valid outside position found for new vertex." };
     }
-    
+
+    // Validate edges from new vertex to all segment vertices
+    const edgeValidation = this.validateNewEdges(newPosition, segmentVertices);
+    if (!edgeValidation.valid) {
+        return { success: false, message: edgeValidation.message };
+    }
+
+    // Add new vertex
+    const newVertexIdx = this.vertices.length;
+    this.vertices.push({
+        x: newPosition.x,
+        y: newPosition.y,
+        visible: true,
+        id: ++this.maxVertexId
+    });
+
+    // Connect new vertex to all segment vertices
+    for (const vIdx of segmentVertices) {
+        this.edges.push([newVertexIdx, vIdx]);
+    }
+
+    // Replace segment in periphery with new vertex
+    this.updatePeripheryAfterSegmentReplacement(p1Idx, p2Idx, newVertexIdx);
+
+    // Force clockwise order
+    this.ensureClockwiseOrder();
+
+    // Validate graph integrity
+    const integrityCheck = this.validateGraphIntegrity();
+    if (!integrityCheck.valid) {
+        // Rollback if planarity violated
+        this.vertices.pop();
+        this.edges.splice(-segmentVertices.length);
+        this.updatePeriphery();
+        return { success: false, message: integrityCheck.message };
+    }
+
+    // Clear selection
+    this.selectedVertices = [];
+    this.segmentVertices = [];
+
+    return {
+        success: true,
+        message: `Added vertex V${this.maxVertexId} outside periphery, connected to ${segmentVertices.length} segment vertices (clockwise).`
+    };
+}
+
+
     updatePeripheryAfterSegmentReplacement(startIdx, endIdx, newVertexIdx) {
-        // Calculate number of vertices to replace
         const n = this.periphery.length;
-        
-        // Remove the segment and insert new vertex
-        const newPeriphery = [];
-        
+        let newPeriphery = [];
+
+        // Remove the segment between startIdx and endIdx (inclusive, clockwise)
+        // and insert the new vertex in its place
         if (startIdx <= endIdx) {
-            // Simple case: segment doesn't wrap around
-            newPeriphery.push(...this.periphery.slice(0, startIdx));
-            newPeriphery.push(newVertexIdx);
-            newPeriphery.push(...this.periphery.slice(endIdx + 1));
+            // Segment does not wrap around
+            newPeriphery = [
+                ...this.periphery.slice(0, startIdx),
+                newVertexIdx,
+                ...this.periphery.slice(endIdx + 1)
+            ];
         } else {
-            // Segment wraps around the array
-            newPeriphery.push(...this.periphery.slice(endIdx + 1, startIdx));
-            newPeriphery.push(newVertexIdx);
+            // Segment wraps around
+            newPeriphery = [
+                ...this.periphery.slice(endIdx + 1, startIdx),
+                newVertexIdx
+            ];
         }
-        
+
+        // Ensure clockwise order by checking signed area
+        // If area is negative, reverse to make it clockwise
+        if (newPeriphery.length >= 3) {
+            let area = 0;
+            for (let i = 0; i < newPeriphery.length; i++) {
+                const j = (i + 1) % newPeriphery.length;
+                const vi = this.vertices[newPeriphery[i]];
+                const vj = this.vertices[newPeriphery[j]];
+                area += (vj.x - vi.x) * (vj.y + vi.y);
+            }
+            if (area < 0) {
+                newPeriphery.reverse();
+            }
+        }
+
         this.periphery = newPeriphery;
-        this.ensureClockwiseOrder();
     }
     
     isOutsideGraph(x, y, margin = 0) {
@@ -1222,39 +1316,102 @@ class GraphApp {
     //         button.classList.remove('manual-mode-active');
     //     }
     // }
+    // toggleManualMode() {
+    //     this.graph.manualMode = !this.graph.manualMode;
+    //     if (!this.graph.manualMode) {
+    //         // Clear selections when leaving manual mode
+    //         this.graph.selectedVertices = [];
+    //         this.graph.segmentVertices = [];
+    //     }
+    //     this.updateManualModeUI();
+    //     this.redrawOptimize();
+    //     this.updateUI();
+
+    //     if (this.graph.manualMode) {
+    //         this.showMessage('Manual segment mode: Click two periphery vertices - preview shows potential placement', 'info');
+    //     } else {
+    //         this.showMessage('Manual segment mode disabled', 'info');
+    //     }
+
+    //     // If manual mode is enabled and two periphery vertices are selected, always connect to all in-between periphery vertices (inclusive, clockwise)
+    //     if (this.graph.manualMode && this.graph.selectedVertices.length === 2) {
+    //         const [v1Idx, v2Idx] = this.graph.selectedVertices;
+    //         const p1Idx = this.graph.periphery.indexOf(v1Idx);
+    //         const p2Idx = this.graph.periphery.indexOf(v2Idx);
+
+    //         if (p1Idx !== -1 && p2Idx !== -1) {
+    //             // Get all periphery vertices between p1Idx and p2Idx (inclusive, clockwise)
+    //             const segmentVertices = this.graph.getPeripherySegment(p1Idx, p2Idx);
+
+    //             // Find a position for the new vertex
+    //             const newPosition = this.graph.findNonIntersectingPosition(segmentVertices);
+    //             if (newPosition) {
+    //                 // Add new vertex
+    //                 const newVertexIdx = this.graph.vertices.length;
+    //                 this.graph.vertices.push({
+    //                     x: newPosition.x,
+    //                     y: newPosition.y,
+    //                     visible: true,
+    //                     id: ++this.graph.maxVertexId
+    //                 });
+
+    //                 // Connect new vertex to all segment vertices (including extremes and in-between)
+    //                 for (const vIdx of segmentVertices) {
+    //                     this.graph.edges.push([newVertexIdx, vIdx]);
+    //                 }
+
+    //                 // Replace segment in periphery with new vertex, maintaining clockwise order
+    //                 this.graph.updatePeripheryAfterSegmentReplacement(p1Idx, p2Idx, newVertexIdx);
+
+    //                 // Ensure clockwise order of periphery
+    //                 this.graph.ensureClockwiseOrder();
+
+    //                 // Adjust height of last vertex (move it outward)
+    //                 const vertex = this.graph.vertices[newVertexIdx];
+    //                 const center = this.graph.calculateGraphCenter();
+    //                 const dx = vertex.x - center.x;
+    //                 const dy = vertex.y - center.y;
+    //                 const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    //                 vertex.x += (dx / len) * 20;
+    //                 vertex.y += (dy / len) * 60;
+    //                 this.graph.updatePeriphery();
+    //                 this.renderer.centerAndFit();
+
+    //                 // Clear selection after adding
+    //                 this.graph.selectedVertices = [];
+    //                 this.graph.segmentVertices = [];
+    //             }
+    //         }
+    //     }
+// 
+    //     this.renderer.render();
+    // }
+
     toggleManualMode() {
-        this.graph.manualMode = !this.graph.manualMode;
-        if (!this.graph.manualMode) {
-            // Clear selections when leaving manual mode
-            this.graph.selectedVertices = [];
-            this.graph.segmentVertices = [];
-        }
-        this.updateManualModeUI();
-        this.redrawOptimize(); // Automatically optimize after toggling manual mode
-        this.updateUI();
+    this.graph.manualMode = !this.graph.manualMode;
 
-        if (this.graph.manualMode) {
-            this.showMessage('Manual segment mode: Click two periphery vertices - preview shows potential placement', 'info');
-        } else {
-            this.showMessage('Manual segment mode disabled', 'info');
-        }
-
-        // Automatically adjust height of last vertex if manual mode is enabled and a new vertex was just added
-        if (this.graph.manualMode && this.graph.vertices.length > 3) {
-            const lastVertexIdx = this.graph.vertices.length - 1;
-            const vertex = this.graph.vertices[lastVertexIdx];
-            const center = this.graph.calculateGraphCenter();
-            const dx = vertex.x - center.x;
-            const dy = vertex.y - center.y;
-            const len = Math.sqrt(dx * dx + dy * dy) || 1;
-            vertex.x += (dx / len) * 20;
-            vertex.y += (dy / len) * 60;
-            this.graph.updatePeriphery();
-            this.renderer.centerAndFit();
-        }
-
-        this.renderer.render();
+    if (!this.graph.manualMode) {
+        // Clear selections when leaving manual mode
+        this.graph.selectedVertices = [];
+        this.graph.segmentVertices = [];
     }
+
+    this.updateManualModeUI();
+    this.redrawOptimize();
+    this.updateUI();
+
+    if (this.graph.manualMode) {
+        this.showMessage(
+            'Manual segment mode: Click two periphery vertices - preview shows potential placement',
+            'info'
+        );
+    } else {
+        this.showMessage('Manual segment mode disabled', 'info');
+    }
+
+    this.renderer.render();
+}
+
     
     clearSelection() {
         this.graph.selectedVertices = [];
@@ -1284,13 +1441,16 @@ class GraphApp {
     
     zoom(factor) {
         const oldZoom = this.renderer.zoom;
-        this.renderer.zoom *= factor;
-        this.renderer.zoom = Math.max(0.1, Math.min(5, this.renderer.zoom));
-        
+        // Apply zoom factor correctly
+        let newZoom = this.renderer.zoom * factor;
+        // Clamp zoom between 0.1 and 5
+        newZoom = Math.max(0.1, Math.min(5, newZoom));
+        this.renderer.zoom = newZoom;
+
         if (oldZoom !== this.renderer.zoom) {
             this.renderer.render();
             this.updateUI();
-            
+
             const zoomBtn = factor > 1 ? document.getElementById('zoomIn') : document.getElementById('zoomOut');
             zoomBtn.classList.add('btn--active');
             setTimeout(() => zoomBtn.classList.remove('btn--active'), 150);
