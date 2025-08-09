@@ -260,24 +260,58 @@ class Graph {
     }
     
     // Get all vertices in the segment between two periphery indices (inclusive)
+    // getPeripherySegment(startIdx, endIdx) {
+    //     const segment = [];
+    //     const n = this.periphery.length;
+
+    //     if (startIdx === endIdx) {
+    //         return [this.periphery[startIdx]];
+    //     }
+
+    //     // Always traverse clockwise from startIdx to endIdx, wrapping around if needed
+    //     let current = startIdx;
+    //     while (true) {
+    //         segment.push(this.periphery[current]);
+    //         if (current === endIdx) break;
+    //         current = (current + 1) % n;
+    //     }
+
+    //     return segment;
+    // }
+
     getPeripherySegment(startIdx, endIdx) {
-        const segment = [];
-        const n = this.periphery.length;
+    const n = this.periphery.length;
 
-        if (startIdx === endIdx) {
-            return [this.periphery[startIdx]];
-        }
-
-        // Always traverse clockwise from startIdx to endIdx, wrapping around if needed
-        let current = startIdx;
-        while (true) {
-            segment.push(this.periphery[current]);
-            if (current === endIdx) break;
-            current = (current + 1) % n;
-        }
-
-        return segment;
+    if (startIdx === endIdx) {
+        return [this.periphery[startIdx]];
     }
+
+    // Path 1: clockwise from startIdx to endIdx
+    let clockwise = [];
+    let current = startIdx;
+    while (true) {
+        clockwise.push(this.periphery[current]);
+        if (current === endIdx) break;
+        current = (current + 1) % n;
+    }
+
+    // Path 2: clockwise from endIdx to startIdx (reverse direction)
+    let counterClockwise = [];
+    current = endIdx;
+    while (true) {
+        counterClockwise.push(this.periphery[current]);
+        if (current === startIdx) break;
+        current = (current + 1) % n;
+    }
+
+    // Choose the shorter path
+    if (clockwise.length <= counterClockwise.length) {
+        return clockwise;
+    } else {
+        return counterClockwise.reverse(); // reverse to go start -> end
+    }
+}
+
     
     // // Process segment selection and add vertex connecting to ALL segment vertices
     // processSegmentSelection() {
