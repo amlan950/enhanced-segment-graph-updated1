@@ -483,9 +483,11 @@ processSegmentSelection() {
     }
 
     // Replace segment in periphery with new vertex
-    this.updatePeripheryAfterSegmentReplacement(p1Idx, p2Idx, newVertexIdx);
+    // this.updatePeripheryAfterSegmentReplacement(p1Idx, p2Idx, newVertexIdx);
 
-
+// Instead of replacing segment in periphery, insert new vertex outside it
+const insertPos = (p2Idx + 1) % this.periphery.length;
+this.periphery.splice(insertPos, 0, newVertexIdx);
 
 
 
